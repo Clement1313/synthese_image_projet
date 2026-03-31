@@ -32,22 +32,38 @@ namespace
         return Vector3(dx, dy, dz).normalized();
     }
 
-    Colors shadePixel(const SDF& scene, const Vector3& hitPoint)
+    Colors shadePixel(const SDF& scene, const Vector3& hitPoint,
+                      const Vector3& rayDir)
     {
         const Vector3 normal = estimateNormal(scene, hitPoint);
         const Vector3 lightPos(3.0f, 4.0f, -1.0f);
         const Vector3 lightDir = (lightPos - hitPoint).normalized();
+        const Vector3 viewDir = (rayDir * -1.0f).normalized();
 
         const float diffuse = std::max(0.0f, normal.dot(lightDir));
         const float ambient = 0.15f;
-        const float intensity = std::min(1.0f, ambient + 0.85f * diffuse);
+        const Vector3 halfVector = addVec(lightDir, viewDir).normalized();
+        const float specular =
+            std::pow(std::max(0.0f, normal.dot(halfVector)), 80.0f);
+        const float diffuseIntensity =
+            std::min(1.0f, ambient + 0.85f * diffuse);
+        const float specularIntensity = 0.55f * specular;
+        // pow(max(dot(reflect(-lightDirection,normal),normalize(ro-p)),0.), 50.);
 
         const Colors base(235, 110, 85);
-        return Colors(static_cast<int>(base.r * intensity),
-                      static_cast<int>(base.g * intensity),
-                      static_cast<int>(base.b * intensity));
+        const int r = std::min(255,
+                               static_cast<int>(base.r * diffuseIntensity
+                                                + 255.0f * specularIntensity));
+        const int g = std::min(255,
+                               static_cast<int>(base.g * diffuseIntensity
+                                                + 255.0f * specularIntensity));
+        const int b = std::min(255,
+                               static_cast<int>(base.b * diffuseIntensity
+                                                + 255.0f * specularIntensity));
+
+        return Colors(r, g, b);
     }
-}
+} // namespace
 
 namespace ray_marching
 {
@@ -87,7 +103,7 @@ namespace ray_marching
 
                 if (hit)
                 {
-                    image.setPixel(shadePixel(scene, hitPoint), x, y);
+                    image.setPixel(shadePixel(scene, hitPoint, rayDir), x, y);
                 }
                 else
                 {
