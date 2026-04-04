@@ -11,6 +11,7 @@ using namespace std;
 int main() {
     scene world;
     world.addObject(std::make_shared<SphereSDF>(Vector3(0.0f, 0.0f, 0.0f), 1.0f));
+    world.addObject(std::make_shared<PlaneSDF>(Vector3(0.0f, -1.f, 0.0f), Vector3(0.0f, 1.0f, 0.0f)));
 
     ray_marching::render(world, "sphere.ppm");
     return 0;

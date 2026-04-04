@@ -13,7 +13,7 @@ namespace
     constexpr int HEIGHT = 600;
     constexpr int MAX_STEPS = 128;
     constexpr float MAX_DIST = 100.0f;
-    constexpr float SURFACE_APPROX = 0.001f;
+    constexpr float SURFACE_APPROX = 0.002f;
 
     Vector3 addVec(const Vector3& a, const Vector3& b)
     {
@@ -32,22 +32,75 @@ namespace
         return Vector3(dx, dy, dz).normalized();
     }
 
-    Colors shadePixel(const SDF& scene, const Vector3& hitPoint)
+    float softShadow(const SDF& scene, const Vector3& hitPoint, const Vector3& rayDir, float mint, float maxt, float w) {
+        float res = 1.0f;
+        float t = mint;
+        for (float i = 0; i < 256 && t < maxt; i++) {
+            float h = scene.distance(addVec(hitPoint, rayDir * t));
+            res = std::min(res, h/(w*t));
+            t += std::clamp(h, 0.005f, 0.50f);
+            if (res < -1.0f || t > maxt) break;
+        }
+        res = std::max(res, -1.0f);
+        return 0.25f*(1.0f + res) * (1.0f + res) * (2.0f - res); 
+    }
+
+    float ambientOcclusion(const SDF& scene, const Vector3& hitPoint,
+                           const Vector3& normal, float stepDist,
+                           float stepNumber)
+    {
+        float occlusion = 1.f;
+        while (stepNumber > 0.0f)
+        {
+            const Vector3 samplePoint =
+                addVec(hitPoint, normal * (stepNumber * stepDist));
+            const float expectedDist = stepNumber * stepDist;
+            const float actualDist = scene.distance(samplePoint);
+            occlusion -= std::pow(expectedDist - actualDist, 2.0f) / stepNumber;
+            stepNumber--;
+        }
+        return std::max(0.0f, occlusion);
+    }
+
+    Colors shadePixel(const SDF& scene, const Vector3& hitPoint,
+                      const Vector3& rayDir)
     {
         const Vector3 normal = estimateNormal(scene, hitPoint);
         const Vector3 lightPos(3.0f, 4.0f, -1.0f);
         const Vector3 lightDir = (lightPos - hitPoint).normalized();
+        const Vector3 viewDir = (rayDir * -1.0f).normalized();
 
         const float diffuse = std::max(0.0f, normal.dot(lightDir));
         const float ambient = 0.15f;
-        const float intensity = std::min(1.0f, ambient + 0.85f * diffuse);
+        const Vector3 halfVector = addVec(lightDir, viewDir).normalized();
+        const float specular =
+            std::pow(std::max(0.0f, normal.dot(halfVector)), 80.0f);
+
+        const float ao = std::clamp(
+            std::pow(ambientOcclusion(scene, hitPoint, normal, 0.015f, 20.f),
+                     0.5f),
+            0.1f, 1.0f);
+
+        const float sh = std::clamp(softShadow(scene, hitPoint, lightDir, 0.02f, 20.5f, 0.5f), 0.1f, 1.f);
+
+        const float diffuseIntensity =
+            std::min(1.0f, (ambient * ao * sh) + (0.85f * diffuse * ao * sh));
+        const float specularIntensity = 0.55f * specular;
 
         const Colors base(235, 110, 85);
-        return Colors(static_cast<int>(base.r * intensity),
-                      static_cast<int>(base.g * intensity),
-                      static_cast<int>(base.b * intensity));
+        const int r = std::min(255,
+                               static_cast<int>(base.r * diffuseIntensity
+                                                + 255.0f * specularIntensity));
+        const int g = std::min(255,
+                               static_cast<int>(base.g * diffuseIntensity
+                                                + 255.0f * specularIntensity));
+        const int b = std::min(255,
+                               static_cast<int>(base.b * diffuseIntensity
+                                                + 255.0f * specularIntensity));
+
+        return Colors(r, g, b);
     }
-}
+} // namespace
 
 namespace ray_marching
 {
@@ -79,15 +132,15 @@ namespace ray_marching
                     if (dist < SURFACE_APPROX)
                     {
                         hit = true;
-                        hitPoint = p;
+                        hitPoint = addVec(p, rayDir * SURFACE_APPROX);
                         break;
                     }
-                    t += dist;
+                    t += std::max(dist, 0.001f);
                 }
 
                 if (hit)
                 {
-                    image.setPixel(shadePixel(scene, hitPoint), x, y);
+                    image.setPixel(shadePixel(scene, hitPoint, rayDir), x, y);
                 }
                 else
                 {

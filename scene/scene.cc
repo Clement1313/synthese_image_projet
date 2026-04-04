@@ -1,5 +1,6 @@
 #include "scene.hh"
 
+#include <iostream>
 #include <limits>
 
 void scene::addObject(const std::shared_ptr<SDF>& object)
@@ -25,4 +26,15 @@ float scene::distance(const Vector3& p) const
     }
 
     return minDistance;
+
+    // float d = objects[0]->distance(p);
+
+    // for (int i = 1; i < objects.size(); i++)
+    // {
+    //     float d2 = objects[i]->distance(p);
+    //     float k = 0.3f;
+    //     float h = std::max(k - std::abs(d - d2), 0.0f);
+    //     d = std::min(d, d2) - (h * h) / (4.0f * k);
+    // }
+    // return d;
 }
