@@ -17,7 +17,7 @@ Vector3 crossVec(const Vector3& a, const Vector3& b) {
 }
 } 
 
-Vector3 Camera::pixelCenter(int i, int j, int width, int height) {
+Vector3 Camera::pixelCenter(float i, float j, int width, int height) const {
     Vector3 forward = (P - C).normalized();
     Vector3 t = up - forward * up.dot(forward);
     Vector3 trueUp = t.normalized();
@@ -29,8 +29,8 @@ Vector3 Camera::pixelCenter(int i, int j, int width, int height) {
     float halfWidth = std::tan(fovX * 0.5f) * z;
     float halfHeight = std::tan(fovY * 0.5f) * z;
 
-    float u = ((static_cast<float>(i) + 0.5f) / static_cast<float>(width) - 0.5f) * 2.0f * halfWidth;
-    float v = ((static_cast<float>(j) + 0.5f) / static_cast<float>(height) - 0.5f) * 2.0f * halfHeight;
+    float u = (i / static_cast<float>(width) - 0.5f) * 2.0f * halfWidth;
+    float v = (j / static_cast<float>(height) - 0.5f) * 2.0f * halfHeight;
 
     return addVec(addVec(imageCenter, right * u), trueUp * v);
 }

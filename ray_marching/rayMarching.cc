@@ -14,6 +14,12 @@ namespace
     constexpr int MAX_STEPS = 128;
     constexpr float MAX_DIST = 100.0f;
     constexpr float SURFACE_APPROX = 0.002f;
+    constexpr int AA_SAMPLES = 4;
+
+    constexpr float SAMPLE_OFFSETS[AA_SAMPLES][2] = {
+        {0.25f, 0.25f}, {0.75f, 0.25f},
+        {0.25f, 0.75f}, {0.75f, 0.75f}
+    };
 
     Vector3 addVec(const Vector3& a, const Vector3& b)
     {
@@ -98,6 +104,44 @@ namespace
 
         return Colors(r, g, b);
     }
+
+    Colors tracePixel(const SDF& scene, const Camera& camera, float pixelX,
+                      float pixelY)
+    {
+        const Vector3 pixelCenter = camera.pixelCenter(pixelX, pixelY, WIDTH, HEIGHT);
+        const Vector3 rayOrigin = camera.C;
+        const Vector3 rayDir = (pixelCenter - rayOrigin).normalized();
+
+        float t = 0.0f;
+        bool hit = false;
+        Vector3 hitPoint;
+
+        for (int step = 0; step < MAX_STEPS && t < MAX_DIST; step++)
+        {
+            const Vector3 p = addVec(rayOrigin, rayDir * t);
+            const float dist = scene.distance(p);
+
+            if (dist < SURFACE_APPROX)
+            {
+                hit = true;
+                hitPoint = addVec(p, rayDir * SURFACE_APPROX);
+                break;
+            }
+            t += std::max(dist, 0.001f);
+        }
+
+        if (hit)
+        {
+            const SDF* hitObject = scene.closestObject(hitPoint);
+            const Colors baseColor = hitObject ? hitObject->getColor() : Colors(235, 110, 85);
+            return shadePixel(scene, hitPoint, rayDir, baseColor);
+        }
+
+        const float gradient = pixelY / static_cast<float>(HEIGHT - 1);
+        return Colors(static_cast<int>(45 + gradient * 45),
+                      static_cast<int>(90 + gradient * 70),
+                      static_cast<int>(155 + gradient * 70));
+    }
 } // namespace
 
 namespace ray_marching
@@ -113,45 +157,25 @@ namespace ray_marching
         {
             for (int x = 0; x < WIDTH; x++)
             {
-                const Vector3 pixelCenter =
-                    camera.pixelCenter(x, HEIGHT - 1 - y, WIDTH, HEIGHT);
-                const Vector3 rayOrigin = camera.C;
-                const Vector3 rayDir = (pixelCenter - rayOrigin).normalized();
+                float rSum = 0.0f;
+                float gSum = 0.0f;
+                float bSum = 0.0f;
 
-                float t = 0.0f;
-                bool hit = false;
-                Vector3 hitPoint;
-
-                for (int step = 0; step < MAX_STEPS && t < MAX_DIST; step++)
+                for (int sample = 0; sample < AA_SAMPLES; sample++)
                 {
-                    const Vector3 p = addVec(rayOrigin, rayDir * t);
-                    const float dist = scene.distance(p);
-
-                    if (dist < SURFACE_APPROX)
-                    {
-                        hit = true;
-                        hitPoint = addVec(p, rayDir * SURFACE_APPROX);
-                        break;
-                    }
-                    t += std::max(dist, 0.001f);
+                    const float sampleX = static_cast<float>(x) + SAMPLE_OFFSETS[sample][0];
+                    const float sampleY = static_cast<float>(HEIGHT - 1 - y) + SAMPLE_OFFSETS[sample][1];
+                    const Colors sampleColor = tracePixel(scene, camera, sampleX, sampleY);
+                    rSum += static_cast<float>(sampleColor.r);
+                    gSum += static_cast<float>(sampleColor.g);
+                    bSum += static_cast<float>(sampleColor.b);
                 }
 
-                if (hit)
-                {
-                    const SDF* hitObject = scene.closestObject(hitPoint);
-                    const Colors baseColor = hitObject ? hitObject->getColor() : Colors(235, 110, 85);
-                    image.setPixel(shadePixel(scene, hitPoint, rayDir, baseColor), x, y);
-                }
-                else
-                {
-                    const float gradient =
-                        static_cast<float>(y) / static_cast<float>(HEIGHT - 1);
-                    image.setPixel(
-                        Colors(static_cast<int>(45 + gradient * 45),
-                               static_cast<int>(90 + gradient * 70),
-                               static_cast<int>(155 + gradient * 70)),
-                        x, y);
-                }
+                image.setPixel(
+                    Colors(static_cast<int>(rSum / AA_SAMPLES),
+                           static_cast<int>(gSum / AA_SAMPLES),
+                           static_cast<int>(bSum / AA_SAMPLES)),
+                    x, y);
             }
         }
 
