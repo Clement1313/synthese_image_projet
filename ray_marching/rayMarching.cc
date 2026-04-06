@@ -63,7 +63,7 @@ namespace
     }
 
     Colors shadePixel(const SDF& scene, const Vector3& hitPoint,
-                      const Vector3& rayDir)
+                      const Vector3& rayDir, const Colors& base)
     {
         const Vector3 normal = estimateNormal(scene, hitPoint);
         const Vector3 lightPos(3.0f, 4.0f, -1.0f);
@@ -86,8 +86,6 @@ namespace
         const float diffuseIntensity =
             std::min(1.0f, (ambient * ao * sh) + (0.85f * diffuse * ao * sh));
         const float specularIntensity = 0.55f * specular;
-
-        const Colors base(235, 110, 85);
         const int r = std::min(255,
                                static_cast<int>(base.r * diffuseIntensity
                                                 + 255.0f * specularIntensity));
@@ -140,7 +138,9 @@ namespace ray_marching
 
                 if (hit)
                 {
-                    image.setPixel(shadePixel(scene, hitPoint, rayDir), x, y);
+                    const SDF* hitObject = scene.closestObject(hitPoint);
+                    const Colors baseColor = hitObject ? hitObject->getColor() : Colors(235, 110, 85);
+                    image.setPixel(shadePixel(scene, hitPoint, rayDir, baseColor), x, y);
                 }
                 else
                 {
