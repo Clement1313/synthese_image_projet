@@ -33,13 +33,12 @@ public:
 
 
   float sdf_cavern(const Vector3& point) const;
-  /*
-   * Signature: rendu_détaillée (Vector3) -> float
-   * Définition: prend le point
-   */
 
   Cavern(float seuil,float nombre_octaves,float frequence_multiplieur);
   Cavern() = default;
+
+  // rajout des stalactites
+  void init_stalactites(float dist_min,float width,float heigh);
 
 
 };

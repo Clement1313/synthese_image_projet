@@ -7,6 +7,7 @@ SOURCES = \
 	main.cc \
 	generation/perlin.cc \
 	generation/grotte/cavern.cc\
+	generation/detail/stalactites.cc\
 	vector3/Vector3.cc \
 	image/Image.cc \
 	camera/Camera.cpp \
