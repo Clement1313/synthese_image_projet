@@ -42,7 +42,7 @@ namespace
             if (res < -1.0f || t > maxt) break;
         }
         res = std::max(res, -1.0f);
-        return 0.25f*(1.0f + res) * (1.0f + res) * (2.0f - res); 
+        return 0.25f*(1.0f + res) * (1.0f + res) * (2.0f - res);
     }
 
     float ambientOcclusion(const SDF& scene, const Vector3& hitPoint,
@@ -106,8 +106,8 @@ namespace ray_marching
     {
         Image image(WIDTH, HEIGHT);
 
-        Camera camera(Vector3(0.0f, 0.0f, -4.0f), Vector3(0.0f, 0.0f, 0.0f),
-                      Vector3(0.0f, 1.0f, 0.0f), 1.2f, 0.9f, 1.0f);
+        Camera camera(Vector3(0.0f, -2.0f, -3.0f), Vector3(0.0f, 0.5f, 0.0f),
+                      Vector3(0.0f, 1.0f, 0.0f), 2.4f, 1.8f, 1.0f);
 
         for (int y = 0; y < HEIGHT; y++)
         {
