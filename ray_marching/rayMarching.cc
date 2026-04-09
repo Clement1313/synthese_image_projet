@@ -14,6 +14,7 @@ namespace
     constexpr int MAX_STEPS = 128;
     constexpr float MAX_DIST = 100.0f;
     constexpr float SURFACE_APPROX = 0.002f;
+    constexpr bool ENABLE_ANTIALIASING = false;
     constexpr int AA_SAMPLES = 4;
 
     constexpr float SAMPLE_OFFSETS[AA_SAMPLES][2] = { { 0.25f, 0.25f },
@@ -168,13 +169,17 @@ namespace ray_marching
                 float rSum = 0.0f;
                 float gSum = 0.0f;
                 float bSum = 0.0f;
+                const int sampleCount = ENABLE_ANTIALIASING ? AA_SAMPLES : 1;
 
-                for (int sample = 0; sample < AA_SAMPLES; sample++)
+                for (int sample = 0; sample < sampleCount; sample++)
                 {
-                    const float sampleX =
-                        static_cast<float>(x) + SAMPLE_OFFSETS[sample][0];
-                    const float sampleY = static_cast<float>(HEIGHT - 1 - y)
-                        + SAMPLE_OFFSETS[sample][1];
+                    const float offsetX =
+                        ENABLE_ANTIALIASING ? SAMPLE_OFFSETS[sample][0] : 0.5f;
+                    const float offsetY =
+                        ENABLE_ANTIALIASING ? SAMPLE_OFFSETS[sample][1] : 0.5f;
+                    const float sampleX = static_cast<float>(x) + offsetX;
+                    const float sampleY =
+                        static_cast<float>(HEIGHT - 1 - y) + offsetY;
                     const Colors sampleColor =
                         tracePixel(scene, camera, sampleX, sampleY);
                     rSum += static_cast<float>(sampleColor.r);
@@ -182,9 +187,9 @@ namespace ray_marching
                     bSum += static_cast<float>(sampleColor.b);
                 }
 
-                image.setPixel(Colors(static_cast<int>(rSum / AA_SAMPLES),
-                                      static_cast<int>(gSum / AA_SAMPLES),
-                                      static_cast<int>(bSum / AA_SAMPLES)),
+                image.setPixel(Colors(static_cast<int>(rSum / sampleCount),
+                                      static_cast<int>(gSum / sampleCount),
+                                      static_cast<int>(bSum / sampleCount)),
                                x, y);
             }
         }
