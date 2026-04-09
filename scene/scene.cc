@@ -29,7 +29,7 @@ float scene::distance(const Vector3& p) const
 
     float d = objects[0]->distance(p);
 
-    for (int i = 1; i < objects.size(); i++)
+    for (size_t i = 1; i < objects.size(); i++)
     {
         float d2 = objects[i]->distance(p);
         float k = 0.3f;

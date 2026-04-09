@@ -9,7 +9,6 @@ class  Cavern : public SDF {
   float nombre_octaves_ = 3;
   float frequence_multiplicateur_ = 0.75;
 
-
  // réalise les octaves de la carne
   float octave_cavern(const Vector3& point) const;
 public:
@@ -41,6 +40,7 @@ public:
   void init_stalactites(float dist_min,float width,float heigh);
 
 
+  Colors getColor() const override;
 };
 
 

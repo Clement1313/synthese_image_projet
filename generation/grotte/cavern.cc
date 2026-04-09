@@ -92,3 +92,6 @@ float Cavern::distance(const Vector3 &point) const {
 }
 
 
+Colors Cavern::getColor() const {
+  return Colors(255,0,0);
+}
