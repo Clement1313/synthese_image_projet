@@ -17,5 +17,5 @@ public:
         : C(C), P(P), up(up), fovX(fovX), fovY(fovY), zMin(zMin) {}
 
 
-    Vector3 pixelCenter(int i, int j, int width, int height);
+    Vector3 pixelCenter(float i, float j, int width, int height) const;
 };
