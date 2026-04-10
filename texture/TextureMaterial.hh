@@ -14,6 +14,7 @@ struct MaterialInfo {
 
 class TextureMaterial {
 public:
+    virtual ~TextureMaterial() = default;
     virtual MaterialInfo getMaterial(const Vector3& p) const = 0;
 };
 
