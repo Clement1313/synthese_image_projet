@@ -3,10 +3,12 @@
 #include "../perlin.hh"
 #include "../../texture/UniformTexture.hh"
 
+#include "../detail/stalactites.hh"
 #include <complex>
 #include <iostream>
 #include <vector>
-#include "../detail/stalactites.hh"
+
+#include <algorithm>
 Vector3 camera_position = Vector3(0,0,-4) ;
 //std::vector<Vector3> list_stalactites = stalactites::generateStalactites(3,600,800);
 
@@ -79,6 +81,21 @@ float sdfEllipsoid(Vector3 p, Vector3 r) {
 }
 
 
+float sdfCylindre_infini(Vector3 p, Vector3 c) {
+  Vector3 p_xz = Vector3(p.x,p.z,0) ;
+  Vector3 c_xy = Vector3(p.x,p.y,0);
+  return (p_xz - c_xy).norm() - c.z;
+}
+
+float sdfCapsule(Vector3 p, Vector3 a , Vector3 b , float
+   r) {
+  Vector3 pa = p - a;
+  Vector3 ba = b -a;
+  float h = std::clamp(pa.dot(ba) / ba.dot(ba),0.0f,1.0f);
+  return (pa - (ba * h) ).norm() - r;
+}
+
+
 Vector3 point_perlin_noise(const Vector3& point) {
   return
   point -
@@ -88,13 +105,13 @@ Vector3 point_perlin_noise(const Vector3& point) {
 }
 
 float sdf_caverne_salle(const Vector3& point) {
-  return -(sdfEllipsoid(point_perlin_noise(point),
-    vector))   ;
+  return -(sdfCapsule(point_perlin_noise(point),Vector3(0,0, -8),
+    Vector3(0,0,8),20))   ;
 
 }
 
 float Cavern::distance(const Vector3 &point) const {
-  return sdf_caverne_salle(point);
+  return std::max(sdf_caverne_salle(point),sdf_cavern(point));
 }
 
 
