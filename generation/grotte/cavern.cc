@@ -1,6 +1,7 @@
 #include "cavern.hh"
 
 #include "../perlin.hh"
+#include "../../texture/UniformTexture.hh"
 
 #include <complex>
 #include <iostream>
@@ -10,7 +11,12 @@ Vector3 camera_position = Vector3(0,0,-4) ;
 //std::vector<Vector3> list_stalactites = stalactites::generateStalactites(3,600,800);
 
 Cavern::Cavern(float seuil, float nombre_octaves, float frequence_multiplieur) :
-seuil_(seuil), nombre_octaves_(nombre_octaves), frequence_multiplicateur_(frequence_multiplieur){
+seuil_(seuil), nombre_octaves_(nombre_octaves), frequence_multiplicateur_(frequence_multiplieur),
+texture_(std::make_shared<UniformTexture>(MaterialInfo(0.88f, 0.18f, 14.0f, Colors(155, 92, 60)))){
+}
+
+void Cavern::setTexture(const std::shared_ptr<TextureMaterial>& texture) {
+  texture_ = texture;
 }
 
 
@@ -64,7 +70,7 @@ float sdfRoundBox(Vector3 p, Vector3 b, float r) {
   float value = std::min(std::max(x,std::max(y,z)),0.0f);
   return q.norm() + value;
 }
-Vector3 vector = Vector3(15,8,15);
+Vector3 vector = Vector3(26,14,26);
 
 float sdfEllipsoid(Vector3 p, Vector3 r) {
   float k0 = (p/r).norm();
@@ -94,4 +100,11 @@ float Cavern::distance(const Vector3 &point) const {
 
 Colors Cavern::getColor() const {
   return Colors(255,0,0);
+}
+
+MaterialInfo Cavern::getMaterial(const Vector3& point) const {
+  if (texture_) {
+    return texture_->getMaterial(point);
+  }
+  return MaterialInfo(0.88f, 0.18f, 14.0f, Colors(155, 92, 60));
 }

@@ -1,13 +1,17 @@
 #ifndef CAVERN_HH
 #define CAVERN_HH
 
+#include <memory>
+
 #include "../../ray_marching/SDF.hh"
+#include "../../texture/TextureMaterial.hh"
 #include "../../vector3/Vector3.hh"
 
 class  Cavern : public SDF {
   float seuil_ = 0.5;
   float nombre_octaves_ = 3;
   float frequence_multiplicateur_ = 0.75;
+  std::shared_ptr<TextureMaterial> texture_;
 
  // réalise les octaves de la carne
   float octave_cavern(const Vector3& point) const;
@@ -35,12 +39,14 @@ public:
 
   Cavern(float seuil,float nombre_octaves,float frequence_multiplieur);
   Cavern() = default;
+  void setTexture(const std::shared_ptr<TextureMaterial>& texture);
 
   // rajout des stalactites
   void init_stalactites(float dist_min,float width,float heigh);
 
 
   Colors getColor() const override;
+  MaterialInfo getMaterial(const Vector3& point) const override;
 };
 
 

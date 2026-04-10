@@ -74,40 +74,44 @@ namespace
     }
 
     Colors shadePixel(const SDF& scene, const Vector3& hitPoint,
-                      const Vector3& rayDir, const Colors& base)
+                      const Vector3& rayDir, const MaterialInfo& material)
     {
         const Vector3 normal = estimateNormal(scene, hitPoint);
-        const Vector3 lightPos(3.0f, 4.0f, -1.0f);
-        const Vector3 lightDir = (lightPos - hitPoint).normalized();
+        const Vector3 lightPos(3.0f, 2.2f, -1.0f);
+        const Vector3 lightDir =
+            (addVec(lightPos - hitPoint, Vector3(0.0f, 0.7f, 0.0f)).normalized());
         const Vector3 viewDir = (rayDir * -1.0f).normalized();
 
         const float diffuse = std::max(0.0f, normal.dot(lightDir));
-        const float ambient = 0.15f;
+        const float ambient = 0.30f;
+        const float minLight = 0.22f;
         const Vector3 halfVector = addVec(lightDir, viewDir).normalized();
         const float specular =
-            std::pow(std::max(0.0f, normal.dot(halfVector)), 80.0f);
+            std::pow(std::max(0.0f, normal.dot(halfVector)), material.ns);
 
         const float ao = std::clamp(
             std::pow(ambientOcclusion(scene, hitPoint, normal, 0.015f, 20.f),
                      0.5f),
-            0.1f, 1.0f);
+            0.35f, 1.0f);
 
         const float sh = std::clamp(
-            softShadow(scene, hitPoint, lightDir, 0.02f, 20.5f, 0.5f), 0.1f,
+            softShadow(scene, hitPoint, lightDir, 0.02f, 20.5f, 0.5f), 0.45f,
             1.f);
 
         const float diffuseIntensity =
-            std::min(1.0f, (ambient * ao * sh) + (0.85f * diffuse * ao * sh));
-        const float specularIntensity = 0.55f * specular;
+            std::min(1.0f,
+                     minLight + (ambient * ao)
+                         + (material.kd * diffuse * ao * sh));
+        const float specularIntensity = 0.25f * material.ks * specular;
         const int r = std::min(255,
-                               static_cast<int>(base.r * diffuseIntensity
-                                                + 255.0f * specularIntensity));
+                               static_cast<int>(material.color.r * diffuseIntensity
+                                                + 180.0f * specularIntensity));
         const int g = std::min(255,
-                               static_cast<int>(base.g * diffuseIntensity
-                                                + 255.0f * specularIntensity));
+                               static_cast<int>(material.color.g * diffuseIntensity
+                                                + 180.0f * specularIntensity));
         const int b = std::min(255,
-                               static_cast<int>(base.b * diffuseIntensity
-                                                + 255.0f * specularIntensity));
+                               static_cast<int>(material.color.b * diffuseIntensity
+                                                + 180.0f * specularIntensity));
 
         return Colors(r, g, b);
     }
@@ -141,9 +145,11 @@ namespace
         if (hit)
         {
             const SDF* hitObject = scene.closestObject(hitPoint);
-            const Colors baseColor =
-                hitObject ? hitObject->getColor() : Colors(235, 110, 85);
-            return shadePixel(scene, hitPoint, rayDir, baseColor);
+            const MaterialInfo material =
+                hitObject ? hitObject->getMaterial(hitPoint)
+                          : MaterialInfo(0.85f, 0.25f, 20.0f,
+                                         Colors(235, 110, 85));
+            return shadePixel(scene, hitPoint, rayDir, material);
         }
 
         const float gradient = pixelY / static_cast<float>(HEIGHT - 1);
@@ -159,7 +165,7 @@ namespace ray_marching
     {
         Image image(WIDTH, HEIGHT);
 
-        Camera camera(Vector3(0.0f, -2.0f, -3.0f), Vector3(0.0f, 0.5f, 0.0f),
+        Camera camera(Vector3(0.0f, -2.0f, -3.0f), Vector3(0.0f, -2.0f, 0.0f),
                       Vector3(0.0f, 1.0f, 0.0f), 2.4f, 1.8f, 1.0f);
 
         for (int y = 0; y < HEIGHT; y++)
