@@ -1,127 +1,232 @@
 #include "cavern.hh"
 
-#include "../perlin.hh"
-#include "../../texture/UniformTexture.hh"
-
-#include "../detail/stalactites.hh"
-#include <complex>
-#include <iostream>
-#include <vector>
-
 #include <algorithm>
-Vector3 camera_position = Vector3(0,0,-4) ;
-//std::vector<Vector3> list_stalactites = stalactites::generateStalactites(3,600,800);
+#include <cmath>
+#include <limits>
 
-Cavern::Cavern(float seuil, float nombre_octaves, float frequence_multiplieur) :
-seuil_(seuil), nombre_octaves_(nombre_octaves), frequence_multiplicateur_(frequence_multiplieur),
-texture_(std::make_shared<UniformTexture>(MaterialInfo(0.88f, 0.18f, 14.0f, Colors(155, 92, 60)))){
+#include "../../texture/UniformTexture.hh"
+#include "../perlin.hh"
+
+namespace
+{
+    float noiseAt(const Vector3& p)
+    {
+        return perlin_noise::perlin_noise(p);
+    }
+
+    float clamp01(float x)
+    {
+        return std::clamp(x, 0.0f, 1.0f);
+    }
+
+    float smoothMin(float a, float b, float k)
+    {
+        const float h = clamp01(0.5f + 0.5f * (b - a) / k);
+        return (1.0f - h) * b + h * a - k * h * (1.0f - h);
+    }
+
+    float remap(float x, float inMin, float inMax, float outMin, float outMax)
+    {
+        const float denom = inMax - inMin;
+        if (std::abs(denom) < 1e-6f)
+        {
+            return outMin;
+        }
+        const float t = (x - inMin) / denom;
+        return outMin + (outMax - outMin) * t;
+    }
+
+    float fbm(const Vector3& p, int octaves)
+    {
+        float sum = 0.0f;
+        float amplitude = 1.0f;
+        float frequency = 1.0f;
+        float norm = 0.0f;
+
+        for (int i = 0; i < octaves; i++)
+        {
+            sum += amplitude * noiseAt(p * frequency);
+            norm += amplitude;
+            frequency *= 2.0f;
+            amplitude *= 0.5f;
+        }
+
+        return (norm > 0.0f) ? (sum / norm) : 0.0f;
+    }
+
+    float ellipsoidSdf(const Vector3& p, const Vector3& center,
+                       const Vector3& radii)
+    {
+        const Vector3 q = (p - center) / radii;
+        const float minRadius = std::min(radii.x, std::min(radii.y, radii.z));
+        return (q.norm() - 1.0f) * minRadius;
+    }
+
+    float capsuleSdf(const Vector3& p, const Vector3& a, const Vector3& b,
+                     float radius)
+    {
+        const Vector3 pa = p - a;
+        const Vector3 ba = b - a;
+        const float denom = std::max(1e-6f, ba.dot(ba));
+        const float h = std::clamp(pa.dot(ba) / denom, 0.0f, 1.0f);
+        return (pa - ba * h).norm() - radius;
+    }
+
+    Vector3 warpPoint(const Vector3& p)
+    {
+        const float wx = 1.45f
+            * noiseAt(Vector3(p.x * 0.085f + 7.1f, p.y * 0.085f, p.z * 0.085f));
+        const float wy = 0.95f
+            * noiseAt(Vector3(p.x * 0.10f, p.y * 0.10f + 3.3f, p.z * 0.10f));
+        const float wz = 1.45f
+            * noiseAt(Vector3(p.x * 0.095f, p.y * 0.095f, p.z * 0.095f + 5.9f));
+        return Vector3(p.x + wx, p.y + wy, p.z + wz);
+    }
+
+    float chamberNetworkSdf(const Vector3& p)
+    {
+        const Vector3 q = warpPoint(p);
+        float d = std::numeric_limits<float>::infinity();
+
+        d = std::min(d,
+                     ellipsoidSdf(q, Vector3(0.0f, -2.2f, 3.8f),
+                                  Vector3(5.0f, 2.8f, 4.6f)));
+        d = std::min(d,
+                     ellipsoidSdf(q, Vector3(-3.8f, -2.1f, 10.0f),
+                                  Vector3(8.4f, 3.8f, 6.2f)));
+        d = std::min(d,
+                     ellipsoidSdf(q, Vector3(0.8f, -2.0f, 15.8f),
+                                  Vector3(8.2f, 3.8f, 6.8f)));
+        d = std::min(d,
+                     ellipsoidSdf(q, Vector3(3.6f, -2.0f, 21.0f),
+                                  Vector3(9.2f, 4.2f, 7.4f)));
+        d = std::min(d,
+                     ellipsoidSdf(q, Vector3(-2.0f, -1.9f, 32.5f),
+                                  Vector3(8.2f, 3.9f, 6.7f)));
+
+        // Side chambers to break the single tunnel silhouette.
+        d = smoothMin(d,
+                      ellipsoidSdf(q, Vector3(-9.0f, -2.2f, 18.0f),
+                                   Vector3(4.8f, 2.9f, 5.0f)),
+                      1.1f);
+        d = smoothMin(d,
+                      ellipsoidSdf(q, Vector3(8.7f, -2.0f, 27.5f),
+                                   Vector3(4.4f, 2.7f, 4.8f)),
+                      1.1f);
+
+        // Connecting galleries.
+        d = smoothMin(d,
+                      capsuleSdf(q, Vector3(0.1f, -2.2f, 2.4f),
+                                 Vector3(-1.4f, -2.1f, 8.0f), 1.9f),
+                      0.9f);
+        d = smoothMin(d,
+                      capsuleSdf(q, Vector3(-1.4f, -2.1f, 8.0f),
+                                 Vector3(1.9f, -2.0f, 18.0f), 1.8f),
+                      0.9f);
+        d = smoothMin(d,
+                      capsuleSdf(q, Vector3(1.9f, -2.0f, 18.0f),
+                                 Vector3(-0.7f, -1.9f, 29.0f), 1.7f),
+                      0.9f);
+        d = smoothMin(d,
+                      capsuleSdf(q, Vector3(-3.0f, -2.1f, 14.0f),
+                                 Vector3(-7.6f, -2.1f, 18.0f), 1.3f),
+                      0.8f);
+        d = smoothMin(d,
+                      capsuleSdf(q, Vector3(2.6f, -2.0f, 23.0f),
+                                 Vector3(7.2f, -2.0f, 27.0f), 1.25f),
+                      0.8f);
+
+        return d;
+    }
+
+    float floorRoofConstraintSdf(const Vector3& p)
+    {
+        const float floorHeight =
+            -5.5f + 0.80f * fbm(Vector3(p.x * 0.075f, p.z * 0.075f, 11.0f), 2);
+        const float roofHeight =
+            3.0f + 0.72f * fbm(Vector3(p.x * 0.082f, p.z * 0.082f, 4.0f), 2);
+
+        const float belowRoof = p.y - roofHeight;
+        const float aboveFloor = floorHeight - p.y;
+        return std::max(aboveFloor, belowRoof);
+    }
+
+    float rockEnvelopeSdf(const Vector3& p)
+    {
+        float d = ellipsoidSdf(p, Vector3(0.0f, -1.7f, 20.0f),
+                               Vector3(21.0f, 11.5f, 39.0f));
+        d = std::min(d,
+                     ellipsoidSdf(p, Vector3(-3.4f, -1.9f, 20.0f),
+                                  Vector3(15.0f, 9.5f, 32.0f)));
+        d = std::min(d,
+                     ellipsoidSdf(p, Vector3(3.5f, -1.8f, 22.0f),
+                                  Vector3(15.4f, 9.8f, 32.5f)));
+        return d;
+    }
+
+    float cavitySdf(const Vector3& p)
+    {
+        float d = chamberNetworkSdf(p);
+        d = std::max(d, floorRoofConstraintSdf(p));
+
+        // Stronger roughness to get larger asperities on cave walls.
+        const float rough = 0.34f * fbm(p * 0.18f, 3)
+            + 0.20f * noiseAt(p * 0.62f) + 0.08f * noiseAt(p * 1.35f);
+        d += rough;
+        return d;
+    }
+} // namespace
+
+Cavern::Cavern(float seuil, float nombre_octaves, float frequence_multiplieur)
+    : seuil_(seuil)
+    , nombre_octaves_(nombre_octaves)
+    , frequence_multiplicateur_(frequence_multiplieur)
+    , texture_(std::make_shared<UniformTexture>(
+          MaterialInfo(0.88f, 0.18f, 14.0f, Colors(155, 92, 60))))
+{}
+
+void Cavern::setTexture(const std::shared_ptr<TextureMaterial>& texture)
+{
+    texture_ = texture;
 }
 
-void Cavern::setTexture(const std::shared_ptr<TextureMaterial>& texture) {
-  texture_ = texture;
+float Cavern::octave_cavern(const Vector3& point) const
+{
+    const int octaves =
+        std::max(1, static_cast<int>(std::round(nombre_octaves_)));
+    return fbm(point * std::max(0.05f, frequence_multiplicateur_), octaves);
 }
 
+float Cavern::sdf_cavern(const Vector3& point) const
+{
+    const float envelope = rockEnvelopeSdf(point);
 
+    const float shellConstraint = envelope + 2.20f;
+    float cave = cavitySdf(point);
+    cave = std::max(cave, shellConstraint);
 
-// application des octaves
-float Cavern::octave_cavern(const Vector3& point) const {
-  float resultat = 0;
-  float frequence = 1;
-  float amplitude = 1 ;
-  for (int i = 0; i < nombre_octaves_; i++) {
-    resultat += amplitude * (1.0f - std::fabs(perlin_noise::perlin_noise(point * frequence)));
-    frequence *= frequence_multiplicateur_;
-    amplitude *=  0.5;
-  }
-  return  resultat;
+    float rock = std::max(envelope, -cave);
+
+    const float tightness = remap(seuil_, -0.5f, 0.8f, -0.20f, 0.20f);
+    rock -= tightness;
+    return rock;
 }
 
-
-float Cavern::sdf_cavern(const Vector3 &point)  const{
-  return seuil_ - octave_cavern(point);
+float Cavern::distance(const Vector3& point) const
+{
+    return sdf_cavern(point);
 }
 
-float masquage_camera(const Vector3& point) { // sdf d'une sphère pour le masquage
-  Vector3 camera_position = Vector3(0,0,-4) ;
-  return ((point - camera_position).norm() - 0.5) / 4;
+Colors Cavern::getColor() const
+{
+    return Colors(255, 0, 0);
 }
 
-float get_abs(float p ) {
-  return p * (p > 0)  - p * (p < 0);
-}
-
-void do_max(Vector3& vector3, float value) {
-  vector3.x = std::max(vector3.x,value);
-  vector3.y = std::max(vector3.y,value);
-  vector3.z = std::max(vector3.z, value);
-}
-
-void do_min(Vector3& vector3, float value) {
-  vector3.x = std::min(vector3.x,value);
-  vector3.y = std::min(vector3.y,value);
-  vector3.z = std::min(vector3.z, value);
-}
-
-float sdfRoundBox(Vector3 p, Vector3 b, float r) {
-  Vector3 q =  Vector3(get_abs(p.x),get_abs(p.y),get_abs(p.z)) - b;
-  q = Vector3(q.x - r, q.y - r, q.z - r);
-  float x = q.x;
-  float y = q.y;
-  float z = q.z;
-  do_max(q,0.0f);
-  float value = std::min(std::max(x,std::max(y,z)),0.0f);
-  return q.norm() + value;
-}
-Vector3 vector = Vector3(26,14,26);
-
-float sdfEllipsoid(Vector3 p, Vector3 r) {
-  float k0 = (p/r).norm();
-  float k1 = (p/ (r * r )).norm();
-  return k0 * (k0 - 1.0) / k1;
-}
-
-
-float sdfCylindre_infini(Vector3 p, Vector3 c) {
-  Vector3 p_xz = Vector3(p.x,p.z,0) ;
-  Vector3 c_xy = Vector3(p.x,p.y,0);
-  return (p_xz - c_xy).norm() - c.z;
-}
-
-float sdfCapsule(Vector3 p, Vector3 a , Vector3 b , float
-   r) {
-  Vector3 pa = p - a;
-  Vector3 ba = b -a;
-  float h = std::clamp(pa.dot(ba) / ba.dot(ba),0.0f,1.0f);
-  return (pa - (ba * h) ).norm() - r;
-}
-
-
-Vector3 point_perlin_noise(const Vector3& point) {
-  return
-  point -
-      Vector3(-perlin_noise::perlin_noise(point) * 0.75f
-      ,-perlin_noise::perlin_noise(point  - (Vector3(-1.7,-9.2,-3.4)) ) * 0.25f,
-      -perlin_noise::perlin_noise((point) - Vector3(-8.3,-2.8,-5.1)) * 0.25f);
-}
-
-float sdf_caverne_salle(const Vector3& point) {
-  return -(sdfCapsule(point_perlin_noise(point),Vector3(0,0, -8),
-    Vector3(0,0,8),20))   ;
-
-}
-
-float Cavern::distance(const Vector3 &point) const {
-  return std::max(sdf_caverne_salle(point),sdf_cavern(point));
-}
-
-
-Colors Cavern::getColor() const {
-  return Colors(255,0,0);
-}
-
-MaterialInfo Cavern::getMaterial(const Vector3& point) const {
-  if (texture_) {
-    return texture_->getMaterial(point);
-  }
-  return MaterialInfo(0.88f, 0.18f, 14.0f, Colors(155, 92, 60));
+MaterialInfo Cavern::getMaterial(const Vector3& point) const
+{
+    if (texture_)
+    {
+        return texture_->getMaterial(point);
+    }
+    return MaterialInfo(0.88f, 0.18f, 14.0f, Colors(155, 92, 60));
 }
