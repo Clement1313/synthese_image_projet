@@ -10,17 +10,16 @@
 
 using namespace std;
 
-int main() {
+int main()
+{
     scene world;
-    // world.addObject(std::make_shared<SphereSDF>(Vector3(0.0f, 0.0f, 0.0f), 1.0f));
-    auto cave = std::make_shared<Cavern>(0.1,3,0.12);
+    // world.addObject(std::make_shared<SphereSDF>(Vector3(0.0f, 0.0f,
+    // 0.0f), 1.0f));
+    auto cave = std::make_shared<Cavern>(0.1, 3, 0.12);
     cave->setTexture(std::make_shared<PerlinTexture>(
-        MaterialInfo(0.80f, 0.03f, 6.0f, Colors(92, 76, 63)),
-        MaterialInfo(0.72f, 0.07f, 10.0f, Colors(130, 108, 90)),
-        0.28f,
-        5,
-        2.1f,
-        0.52f));
+        MaterialInfo(0.82f, 0.04f, 8.0f, Colors(86, 78, 66)),
+        MaterialInfo(0.68f, 0.14f, 22.0f, Colors(164, 154, 138)), 0.16f, 5,
+        2.15f, 0.54f, -8.0f, 8.0f, 2.2f, 0.28f));
     world.addObject(cave);
 
     ray_marching::render(world, "cavern.ppm");

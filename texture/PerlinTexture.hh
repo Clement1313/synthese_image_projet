@@ -21,40 +21,45 @@ public:
     float topBrightness;
 
     PerlinTexture(const MaterialInfo& low, const MaterialInfo& high,
-                  float scale = 0.35f, int octaves = 4,
-                  float lacunarity = 2.0f, float gain = 0.5f,
-                  float yMin = -14.0f, float yMax = 14.0f,
+                  float scale = 0.35f, int octaves = 4, float lacunarity = 2.0f,
+                  float gain = 0.5f, float yMin = -14.0f, float yMax = 14.0f,
                   float topTextureScaleFactor = 2.0f,
                   float topBrightness = 0.30f)
-        : low(low),
-          high(high),
-          scale(scale),
-          octaves(std::max(1, octaves)),
-          lacunarity(lacunarity),
-          gain(gain),
-          yMin(yMin),
-          yMax(yMax),
-          topTextureScaleFactor(topTextureScaleFactor),
-          topBrightness(std::max(0.0f, topBrightness))
-    {
-    }
+        : low(low)
+        , high(high)
+        , scale(scale)
+        , octaves(std::max(1, octaves))
+        , lacunarity(lacunarity)
+        , gain(gain)
+        , yMin(yMin)
+        , yMax(yMax)
+        , topTextureScaleFactor(topTextureScaleFactor)
+        , topBrightness(std::max(0.0f, topBrightness))
+    {}
 
     MaterialInfo getMaterial(const Vector3& p) const override
     {
         const float heightDenom = std::max(0.001f, yMax - yMin);
-        const float heightT = std::clamp((p.y - yMin) / heightDenom, 0.0f, 1.0f);
+        const float heightT =
+            std::clamp((p.y - yMin) / heightDenom, 0.0f, 1.0f);
 
         const float bottomNoiseT = sampleFBM(p, scale);
         const float topNoiseT = sampleFBM(p, scale * topTextureScaleFactor);
         const float topMapped = std::clamp(0.2f + 0.8f * topNoiseT, 0.0f, 1.0f);
         const float t = (1.0f - heightT) * bottomNoiseT + heightT * topMapped;
 
+        const float wetNoise = sampleFBM(p, scale * 3.2f);
+        const float wetMask =
+            std::clamp(0.25f + 0.55f * heightT + 0.45f * wetNoise, 0.0f, 1.0f);
+
         const auto lerp = [t](float a, float b) { return a + (b - a) * t; };
         const auto lerpColor = [t](int a, int b) {
             return static_cast<int>(a + static_cast<float>(b - a) * t);
         };
 
-        const float brightness = 1.0f + topBrightness * heightT;
+        const float brightness = std::clamp((1.0f + topBrightness * heightT)
+                                                * (1.0f - 0.22f * wetMask),
+                                            0.70f, 1.15f);
 
         const int r = std::clamp(
             static_cast<int>(lerpColor(low.color.r, high.color.r) * brightness),
@@ -66,11 +71,17 @@ public:
             static_cast<int>(lerpColor(low.color.b, high.color.b) * brightness),
             0, 255);
 
-        return MaterialInfo(
-            lerp(low.kd, high.kd),
-            lerp(low.ks, high.ks) * (1.0f - 0.20f * heightT),
-            lerp(low.ns, high.ns),
-            Colors(r, g, b));
+        const float kdBase = lerp(low.kd, high.kd);
+        const float ksBase = lerp(low.ks, high.ks);
+        const float nsBase = lerp(low.ns, high.ns);
+
+        const float kdWet =
+            std::clamp(kdBase * (1.0f - 0.16f * wetMask), 0.05f, 1.0f);
+        const float ksWet = std::clamp(
+            (ksBase * (1.0f - 0.20f * heightT)) + 0.22f * wetMask, 0.0f, 1.0f);
+        const float nsWet = std::clamp(nsBase + 22.0f * wetMask, 1.0f, 128.0f);
+
+        return MaterialInfo(kdWet, ksWet, nsWet, Colors(r, g, b));
     }
 
 private:
