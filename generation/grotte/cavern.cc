@@ -104,7 +104,6 @@ namespace
                      ellipsoidSdf(q, Vector3(-2.0f, -1.9f, 32.5f),
                                   Vector3(8.2f, 3.9f, 6.7f)));
 
-        // Side chambers to break the single tunnel silhouette.
         d = smoothMin(d,
                       ellipsoidSdf(q, Vector3(-9.0f, -2.2f, 18.0f),
                                    Vector3(4.8f, 2.9f, 5.0f)),
@@ -114,7 +113,6 @@ namespace
                                    Vector3(4.4f, 2.7f, 4.8f)),
                       1.1f);
 
-        // Connecting galleries.
         d = smoothMin(d,
                       capsuleSdf(q, Vector3(0.1f, -2.2f, 2.4f),
                                  Vector3(-1.4f, -2.1f, 8.0f), 1.9f),
@@ -169,7 +167,6 @@ namespace
         float d = chamberNetworkSdf(p);
         d = std::max(d, floorRoofConstraintSdf(p));
 
-        // Stronger roughness to get larger asperities on cave walls.
         const float rough = 0.34f * fbm(p * 0.18f, 3)
             + 0.20f * noiseAt(p * 0.62f) + 0.08f * noiseAt(p * 1.35f);
         d += rough;

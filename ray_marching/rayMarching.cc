@@ -195,7 +195,6 @@ namespace
                 : MaterialInfo(0.85f, 0.25f, 20.0f, Colors(235, 110, 85));
             const Colors lit = shadePixel(scene, hitPoint, rayDir, material);
 
-            // Slight atmospheric fog to increase depth readability in the cave.
             const float fog = std::min(0.35f, 1.0f - std::exp(-0.012f * t));
             const Colors fogColor(38, 52, 66);
             return lerpColor(lit, fogColor, fog);
