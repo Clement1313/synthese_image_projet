@@ -15,6 +15,7 @@ public:
     Vector3 operator/(const float &l ) const;
     Vector3 operator/(const Vector3& v) const;
     Vector3 operator*(const Vector3& v) const;
+    Vector3 operator+(const Vector3& v) const;
     Vector3 normalized() const;
     float dot(const Vector3 &v) const;
     float norm() const;

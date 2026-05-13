@@ -4,11 +4,15 @@
 #include <cmath>
 #include <limits>
 
+#include "../detail/objects.hh"
 #include "../../texture/UniformTexture.hh"
 #include "../perlin.hh"
 
+#include <iostream>
+
 namespace
 {
+
     float noiseAt(const Vector3& p)
     {
         return perlin_noise::perlin_noise(p);
@@ -179,8 +183,8 @@ Cavern::Cavern(float seuil, float nombre_octaves, float frequence_multiplieur)
     , nombre_octaves_(nombre_octaves)
     , frequence_multiplicateur_(frequence_multiplieur)
     , texture_(std::make_shared<UniformTexture>(
-          MaterialInfo(0.88f, 0.18f, 14.0f, Colors(155, 92, 60))))
-{}
+          MaterialInfo(0.88f, 0.18f, 14.0f, Colors(155, 92, 60)))) {
+}
 
 void Cavern::setTexture(const std::shared_ptr<TextureMaterial>& texture)
 {
@@ -211,7 +215,13 @@ float Cavern::sdf_cavern(const Vector3& point) const
 
 float Cavern::distance(const Vector3& point) const
 {
-    return sdf_cavern(point);
+    float rock = sdf_cavern(point);
+
+    for (const auto& stalactite: stalactites_) {
+        float distance = stalactite->distance(point);
+        rock = smoothMin(rock,distance,0.25f);
+    }
+    return rock;
 }
 
 Colors Cavern::getColor() const
